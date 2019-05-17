@@ -82,12 +82,11 @@ type TagPair struct {
 }
 
 func init() {
-	db, err := bitcask.Open("/tmp/db")
+	db, err := bitcask.Open(fileanme)
 	defer db.Close()
 	if err != nil {
 		log.Fatal("Empty Tag Pair!")
 	}
-
 }
 
 // acquireInput - Acquire URL data from HTTP Resource.
