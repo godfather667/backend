@@ -106,9 +106,8 @@ func parseVertBar(fields []string) []int {
 	return vtList
 }
 
-func parseTags(fields []string) {
-	//ti := 0
-	//var tagList []TagPair
+func parseTags(fields []string) []TagPair {
+	var tagList []TagPair
 	vtList := parseVertBar(fields)
 	fmt.Println("VtList: ", vtList)
 	for i := 0; i < len(vtList)-1; i++ {
@@ -120,17 +119,16 @@ func parseTags(fields []string) {
 		if span < 2 {
 			log.Fatal("Empty Tag Pair!")
 		}
-
-		// tagList[ti].tagName = fields[vtList[i+1]]
-		/*
-			fmt.Println("tag: ", vtList[i+1])
-			for k := vtList[i+2]; k < vtList[j]; k++ {
-				fmt.Println("k = ", k, "  Val = ", vtList[i])
-
-			}
-		*/
+		tn := fields[vi+1]
+		fmt.Println(tn)
+		tv := ""
+		for tvi := vi + 2; tvi < vj; tvi++ {
+			fmt.Println("tvi: ", tvi)
+			tv += fields[tvi] + " "
+		}
+		tagList = append(tagList, TagPair{tn, tv})
 	}
-
+	return tagList
 }
 
 func backendHandler(w http.ResponseWriter, r *http.Request) {
@@ -139,7 +137,9 @@ func backendHandler(w http.ResponseWriter, r *http.Request) {
 	for v, i := range fields { //debug
 		fmt.Println("Field[", i, "] = ", v) //debug
 	}
-	parseTags(fields)
+	tagList := parseTags(fields)
+	fmt.Println("tagList: ", tagList)
+
 }
 
 //
