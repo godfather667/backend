@@ -13,6 +13,7 @@
 //         - <Find String>: |TAG <Search string> |TAG <Search String> ...
 //	       		- May contains logic Tags:  |AND and/or |OR  - (|OR is assumed between pairs}
 //			 <Search String>: Matchs if <TAG Value> "contains" the <search string>
+//	   /EXIT/							- Close Database and exit
 //
 // Example: https://localhost:3000/backend/NEW |TAG <string> |TAG <string> < | or End of Line>
 //
@@ -61,24 +62,45 @@ import (
 	"net/http"
 	"strings"
 	"unicode"
+
+	_ "github.com/prologic/bitcask"
 )
 
+// Constants
+const fileName = "$HOME/db"
+
+// Global Variables
+// 	- db variable holds the reference to the data base handle.
+
+// var db Bitcask.Bitcask
+
+// Types
+// TagPair structure holds the data for each "tag pair" in the <data string>
 type TagPair struct {
 	tagName  string
 	tagValue string
 }
 
+/*
+func init() {
+	db, err = bitcask.Open("/tmp/db")
+	defer db.Close()
+
+}
+*/
+
 // acquireInput - Acquire URL data from HTTP Resource.
 //		- Input all the data from URL.patn
-//		- Insure that the TAG precursor '|' is always preceed by a space character.
+//		- Insure that the TAG precursor '|' is always bound by space character.
+//		- Add a " |' to the end of <data string>
 //		- Crack Inout into fields and return as a slice
 //
 func acquireInput(w http.ResponseWriter, r *http.Request) []string {
 	total := r.URL.Path                            //debug
 	fmt.Println(total)                             //debug
-	total = strings.Replace(total, "|", " | ", -1) //Insure '|' preceeded by a space
+	total = strings.Replace(total, "|", " | ", -1) //Insure '|' is bounded by spaces
 	if !strings.HasSuffix(total, "|") {
-		total += " |"
+		total += " |" // Insure that <data string> ends with a Vertical Bar
 		fmt.Println(total)
 	}
 	var vb int32 = 0x007C // Vertcal Bar
@@ -88,11 +110,22 @@ func acquireInput(w http.ResponseWriter, r *http.Request) []string {
 	fmt.Println(total) //debug
 	fields := strings.FieldsFunc(total, f)
 
+	fmt.Println("Exiting acquire:")
 	return fields
 }
 
+// parseVertBar - The function processing FIELDS slice finding the location
+//			of the Vertical Bar characters (Data Field delimiters). It
+//			creates a slice containing the location of Vertical Bars in the
+//			Field Array,
+// Additionally the function detects whether the last two items in the
+//			Field Array both contain Vertical Bars, Since the acquireInput
+//			function adds a " |" to the end of the the <Data string> and
+//			insures that Vertica Bars are surronded by spaces. It is neccessary
+//			to check if <data string> ends in two Verticals. If it does the
+//		    last one is removed.
 func parseVertBar(fields []string) []int {
-	//tagList := make([]string, len(fields))
+	fmt.Println("parseVertBar: Fields: ", fields)
 	vtList := make([]int, 0)
 	for i, v := range fields {
 		vt := strings.TrimSpace(v)
@@ -100,16 +133,23 @@ func parseVertBar(fields []string) []int {
 			vtList = append(vtList, i)
 		}
 	}
-	if vtList[len(vtList)-2] == vtList[len(vtList)-1]-1 {
-		vtList = vtList[:len(vtList)-1]
+	if len(vtList) > 1 {
+		fmt.Println("vtList Pair Check: ", len(vtList)-2, "  ", len(vtList)-1)
+		if vtList[len(vtList)-2] == vtList[len(vtList)-1]-1 {
+			vtList = vtList[:len(vtList)-1]
+		}
 	}
 	return vtList
 }
 
+// parseTags - Reads the FIELD Slice and isolates each TagPair in the
+//			<data string<> and creates a TagPair Struct <TAG><Value>,
+//			These values are stored in the "tagList" slice.
 func parseTags(fields []string) []TagPair {
+	fmt.Println("parseTags: Fields: ", fields)
 	var tagList []TagPair
 	vtList := parseVertBar(fields)
-	fmt.Println("VtList: ", vtList)
+	fmt.Println("vtList: ", vtList)
 	for i := 0; i < len(vtList)-1; i++ {
 		j := i + 1
 		vi := vtList[i]
@@ -131,6 +171,7 @@ func parseTags(fields []string) []TagPair {
 	return tagList
 }
 
+// backendHandler - This function controls the programs processing.
 func backendHandler(w http.ResponseWriter, r *http.Request) {
 	fields := acquireInput(w, r)
 	fmt.Println(len(fields))
