@@ -63,7 +63,7 @@ import (
 	"strings"
 	"unicode"
 
-	_ "github.com/prologic/bitcask"
+	"github.com/prologic/bitcask"
 )
 
 // Constants
@@ -72,7 +72,7 @@ const fileName = "$HOME/db"
 // Global Variables
 // 	- db variable holds the reference to the data base handle.
 
-// var db Bitcask.Bitcask
+var db *bitcask.Bitcask
 
 // Types
 // TagPair structure holds the data for each "tag pair" in the <data string>
@@ -81,13 +81,14 @@ type TagPair struct {
 	tagValue string
 }
 
-/*
 func init() {
-	db, err = bitcask.Open("/tmp/db")
+	db, err := bitcask.Open("/tmp/db")
 	defer db.Close()
+	if err != nil {
+		log.Fatal("Empty Tag Pair!")
+	}
 
 }
-*/
 
 // acquireInput - Acquire URL data from HTTP Resource.
 //		- Input all the data from URL.patn
