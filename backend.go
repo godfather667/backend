@@ -67,26 +67,44 @@ import (
 )
 
 // Constants
-const fileName = "$HOME/db"
+const fileName = "./db"
 
 // Global Variables
 // 	- db variable holds the reference to the data base handle.
-
+//  - dbi variable holds Record Index for writing records
 var db *bitcask.Bitcask
+var dbi int = 0
 
-// Types
+// Types -
 // TagPair structure holds the data for each "tag pair" in the <data string>
+//
 type TagPair struct {
 	tagName  string
 	tagValue string
 }
 
+//
+// Init() Function - Open Database and Set Database Handle "db".
+//
 func init() {
-	db, err := bitcask.Open(fileanme)
+	db, err := bitcask.Open(fileName)
 	defer db.Close()
+	logFatal("Database Open Failure: ", err)
+}
+
+// logFatal Function - Handlers Fatal Error.
+//
+func logFatal(errMsg string, err error) {
 	if err != nil {
-		log.Fatal("Empty Tag Pair!")
+		log.Fatal(errMsg, err)
 	}
+}
+
+// recIndex Function - Returns the Next Record Index.
+//
+func recIndex() int {
+	dbi += 1
+	return dbi
 }
 
 // acquireInput - Acquire URL data from HTTP Resource.
@@ -96,21 +114,21 @@ func init() {
 //		- Crack Inout into fields and return as a slice
 //
 func acquireInput(w http.ResponseWriter, r *http.Request) []string {
-	total := r.URL.Path                            //debug
-	fmt.Println(total)                             //debug
+	total := r.URL.Path
+	//	fmt.Println(total)                             //debug
 	total = strings.Replace(total, "|", " | ", -1) //Insure '|' is bounded by spaces
 	if !strings.HasSuffix(total, "|") {
 		total += " |" // Insure that <data string> ends with a Vertical Bar
-		fmt.Println(total)
+		//		fmt.Println(total)
 	}
 	var vb int32 = 0x007C // Vertcal Bar
 	f := func(c rune) bool {
 		return !unicode.IsLetter(c) && !unicode.IsNumber(c) && c != vb
 	}
-	fmt.Println(total) //debug
+	//	fmt.Println(total) //debug
 	fields := strings.FieldsFunc(total, f)
 
-	fmt.Println("Exiting acquire:")
+	//	fmt.Println("Exiting acquire:")
 	return fields
 }
 
@@ -125,7 +143,7 @@ func acquireInput(w http.ResponseWriter, r *http.Request) []string {
 //			to check if <data string> ends in two Verticals. If it does the
 //		    last one is removed.
 func parseVertBar(fields []string) []int {
-	fmt.Println("parseVertBar: Fields: ", fields)
+	//	fmt.Println("parseVertBar: Fields: ", fields)
 	vtList := make([]int, 0)
 	for i, v := range fields {
 		vt := strings.TrimSpace(v)
@@ -134,7 +152,7 @@ func parseVertBar(fields []string) []int {
 		}
 	}
 	if len(vtList) > 1 {
-		fmt.Println("vtList Pair Check: ", len(vtList)-2, "  ", len(vtList)-1)
+		//		fmt.Println("vtList Pair Check: ", len(vtList)-2, "  ", len(vtList)-1)
 		if vtList[len(vtList)-2] == vtList[len(vtList)-1]-1 {
 			vtList = vtList[:len(vtList)-1]
 		}
@@ -145,41 +163,40 @@ func parseVertBar(fields []string) []int {
 // parseTags - Reads the FIELD Slice and isolates each TagPair in the
 //			<data string<> and creates a TagPair Struct <TAG><Value>,
 //			These values are stored in the "tagList" slice.
-func parseTags(fields []string) []TagPair {
-	fmt.Println("parseTags: Fields: ", fields)
+func parseTags(fields []string) (string, []TagPair) {
+	//fmt.Println("parseTags: Fields: ", fields)
 	var tagList []TagPair
 	vtList := parseVertBar(fields)
-	fmt.Println("vtList: ", vtList)
+	//	fmt.Println("vtList: ", vtList)
 	for i := 0; i < len(vtList)-1; i++ {
 		j := i + 1
 		vi := vtList[i]
 		vj := vtList[j]
-		span := vj - vi
-		fmt.Println("Span: ", span, "vi: ", vi, "vj: ", vj)
-		if span < 2 {
-			log.Fatal("Empty Tag Pair!")
-		}
+		//     span := vj - vi
+		//		fmt.Println("Span: ", span, "vi: ", vi, "vj: ", vj)
+		//		logFatal("Empty Tag Pair: ", nil)
+
 		tn := fields[vi+1]
-		fmt.Println(tn)
+		//fmt.Println(tn)
 		tv := ""
 		for tvi := vi + 2; tvi < vj; tvi++ {
-			fmt.Println("tvi: ", tvi)
+			//			fmt.Println("tvi: ", tvi)
 			tv += fields[tvi] + " "
 		}
 		tagList = append(tagList, TagPair{tn, tv})
 	}
-	return tagList
+	return fields[1], tagList
 }
 
 // backendHandler - This function controls the programs processing.
 func backendHandler(w http.ResponseWriter, r *http.Request) {
 	fields := acquireInput(w, r)
-	fmt.Println(len(fields))
-	for v, i := range fields { //debug
-		fmt.Println("Field[", i, "] = ", v) //debug
-	}
-	tagList := parseTags(fields)
-	fmt.Println("tagList: ", tagList)
+	//	fmt.Println(len(fields))
+	//	for v, i := range fields { //debug
+	//		fmt.Println("Field[", i, "] = ", v) //debug
+	//	}
+	cmd, tagList := parseTags(fields)
+	fmt.Println("CMD: ", cmd, "  tagList: ", tagList)
 
 }
 
