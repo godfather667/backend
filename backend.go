@@ -115,7 +115,7 @@ func recIndex() int {
 //
 func acquireInput(w http.ResponseWriter, r *http.Request) []string {
 	total := r.URL.Path
-	//	fmt.Println(total)                             //debug
+	fmt.Println(total)                             //debug
 	total = strings.Replace(total, "|", " | ", -1) //Insure '|' is bounded by spaces
 	if !strings.HasSuffix(total, "|") {
 		total += " |" // Insure that <data string> ends with a Vertical Bar
@@ -188,16 +188,19 @@ func parseTags(fields []string) (string, []TagPair) {
 	return fields[1], tagList
 }
 
-// backendHandler - This function controls the programs processing.
-func backendHandler(w http.ResponseWriter, r *http.Request) {
+func CommandLoop(w http.ResponseWriter, r *http.Request) error {
+
 	fields := acquireInput(w, r)
-	//	fmt.Println(len(fields))
-	//	for v, i := range fields { //debug
-	//		fmt.Println("Field[", i, "] = ", v) //debug
-	//	}
 	cmd, tagList := parseTags(fields)
 	fmt.Println("CMD: ", cmd, "  tagList: ", tagList)
 
+	return nil // Currently no errors to report other than logFatal
+}
+
+// backendHandler - This function controls the programs processing.
+func backendHandler(w http.ResponseWriter, r *http.Request) {
+	err := CommandLoop(w, r)
+	logFatal("Command Loop Crashed: ", err)
 }
 
 //
@@ -206,4 +209,7 @@ func backendHandler(w http.ResponseWriter, r *http.Request) {
 func main() {
 	http.HandleFunc("/backend/", backendHandler)
 	log.Fatal(http.ListenAndServe(":3000", nil))
+	for {
+		http.HandleFunc("/backend/", backendHandler)
+	}
 }
