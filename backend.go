@@ -111,10 +111,6 @@ func recIndex() int {
 	return dbi
 }
 
-func formOut() {
-
-}
-
 // acquireInput - Acquire URL data from HTTP Resource.
 //		- Input all the data from URL.patn
 //		- Insure that the TAG precursor '|' is always bound by space character.
@@ -123,7 +119,7 @@ func formOut() {
 //
 func acquireInput(w http.ResponseWriter, r *http.Request) []string {
 	total := r.URL.Path
-	fmt.Println(total)                             //debug
+	//	fmt.Println(total)                             //debug
 	total = strings.Replace(total, "|", " | ", -1) //Insure '|' is bounded by spaces
 	if !strings.HasSuffix(total, "|") {
 		total += " |" // Insure that <data string> ends with a Vertical Bar
@@ -180,9 +176,6 @@ func parseTags(fields []string) (string, []TagPair) {
 		j := i + 1
 		vi := vtList[i]
 		vj := vtList[j]
-		//     span := vj - vi
-		//		fmt.Println("Span: ", span, "vi: ", vi, "vj: ", vj)
-		//		logFatal("Empty Tag Pair: ", nil)
 
 		tn := fields[vi+1]
 		//fmt.Println(tn)
@@ -205,7 +198,6 @@ func CommandLoop(w http.ResponseWriter, r *http.Request) error {
 	switch cmd {
 
 	case "NEW":
-
 		out := ""
 		for i := 0; i < len(tagList); i++ {
 			out += "|" + tagList[i].tagName
@@ -216,6 +208,22 @@ func CommandLoop(w http.ResponseWriter, r *http.Request) error {
 		db.Put(dbi, []byte(out))
 
 	case "LIST":
+		for i := 1; i < 20; i++ {
+			dbi := strconv.Itoa(i)
+			value, _ := db.Get(dbi)
+			if len(value) < 1 {
+				break
+			}
+			fmt.Println(dbi, " ", string(value))
+		}
+
+	case "DEL":
+		dbi := tagList[0].tagValue
+		if len(tagList) < 3 {
+			break
+		}
+		value, _ := db.Get(dbi)
+		fmt.Println(dbi, " ", string(value))
 
 	case "EXIT":
 		db.Close()
