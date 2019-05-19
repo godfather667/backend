@@ -60,6 +60,8 @@ import (
 	_ "io/ioutil"
 	"log"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -107,6 +109,10 @@ func logFatal(errMsg string, err error) {
 func recIndex() int {
 	dbi += 1
 	return dbi
+}
+
+func formOut() {
+
 }
 
 // acquireInput - Acquire URL data from HTTP Resource.
@@ -194,7 +200,30 @@ func CommandLoop(w http.ResponseWriter, r *http.Request) error {
 
 	fields := acquireInput(w, r)
 	cmd, tagList := parseTags(fields)
-	fmt.Println("CMD: ", cmd, "  tagList: ", tagList)
+	//	fmt.Println("CMD: ", cmd, "  tagList: ", tagList)
+
+	switch cmd {
+
+	case "NEW":
+
+		out := ""
+		for i := 0; i < len(tagList); i++ {
+			out += "|" + tagList[i].tagName
+			out += " " + tagList[i].tagValue
+		}
+		dbi := strconv.Itoa(recIndex())
+		fmt.Println("Output Record: ", dbi, " ", out)
+		db.Put(dbi, []byte(out))
+
+	case "LIST":
+
+	case "EXIT":
+		db.Close()
+		os.Exit(0)
+
+	default:
+		fmt.Println("Bad Command Value: ")
+	}
 
 	return nil // Currently no errors to report other than logFatal
 }
