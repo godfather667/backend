@@ -72,8 +72,10 @@ const fileName = "./db"
 // Global Variables
 // 	- db variable holds the reference to the data base handle.
 //  - dbi variable holds Record Index for writing records
+//  - err Error variables
 var db *bitcask.Bitcask
 var dbi int = 0
+var err error
 
 // Types -
 // TagPair structure holds the data for each "tag pair" in the <data string>
@@ -87,8 +89,8 @@ type TagPair struct {
 // Init() Function - Open Database and Set Database Handle "db".
 //
 func init() {
-	db, err := bitcask.Open(fileName)
-	defer db.Close()
+	db, err = bitcask.Open(fileName)
+	//	defer db.Close()
 	logFatal("Database Open Failure: ", err)
 }
 
