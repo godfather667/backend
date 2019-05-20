@@ -5,9 +5,10 @@
 //
 // Specify the record <Command String>:
 //     /NEW/<data string>   			- Creates a new record (next id avaiable)
-//     /UPDATE/id/<data string>			- Updates specified record (id > 0)
-//	   /GET/id/							- Returns spedified record (id > 0)
-//     /DELETE/id/						- Deletes specified record (id > 0)
+//     /UPDATE/<ID string><data string>			- Updates specified record (id > 0)
+//			  <ID string> <ID REC #>
+//	   /GET/<ID string>						- Returns spedified record (id > 0)
+//     /DELETE/<ID string>					- Deletes specified record (id > 0)
 //	   /LIST/							- Lists all records in database
 //	   /FIND/<Find string>		    - Lists records matching <Find Specification>
 //         - <Find String>: |TAG <Search string> |TAG <Search String> ...
@@ -75,9 +76,11 @@ const fileName = "./db"
 // 	- db variable holds the reference to the data base handle.
 //  - dbi variable holds Record Index for writing records
 //  - err Error variables
+//  - Top Index detected from Fold Command
 var db *bitcask.Bitcask
 var dbi int = 0
 var err error
+var topIndex = 0
 
 // Types -
 // TagPair structure holds the data for each "tag pair" in the <data string>
@@ -111,6 +114,19 @@ func recIndex() int {
 	return dbi
 }
 
+func top(key string) error {
+	key = strings.TrimSpace(key)
+	newKey, keyErr := strconv.Atoi(key)
+	if keyErr != nil {
+		fmt.Println("Key Conversion to integer error: ", keyErr)
+		return keyErr
+	}
+	if newKey > topIndex {
+		topIndex = newKey
+	}
+	return nil
+}
+
 // acquireInput - Acquire URL data from HTTP Resource.
 //		- Input all the data from URL.patn
 //		- Insure that the TAG precursor '|' is always bound by space character.
@@ -119,6 +135,7 @@ func recIndex() int {
 //
 func acquireInput(w http.ResponseWriter, r *http.Request) []string {
 	total := r.URL.Path
+	fmt.Println("total: ", total)
 	//	fmt.Println(total)                             //debug
 	total = strings.Replace(total, "|", " | ", -1) //Insure '|' is bounded by spaces
 	if !strings.HasSuffix(total, "|") {
@@ -186,6 +203,7 @@ func parseTags(fields []string) (string, []TagPair) {
 		}
 		tagList = append(tagList, TagPair{tn, tv})
 	}
+	fmt.Println(fields[1], " ", tagList)
 	return fields[1], tagList
 }
 
@@ -193,7 +211,7 @@ func CommandLoop(w http.ResponseWriter, r *http.Request) error {
 
 	fields := acquireInput(w, r)
 	cmd, tagList := parseTags(fields)
-	//	fmt.Println("CMD: ", cmd, "  tagList: ", tagList)
+	fmt.Println("CMD: ", cmd, "  tagList: ", tagList)
 
 	switch cmd {
 
@@ -208,22 +226,61 @@ func CommandLoop(w http.ResponseWriter, r *http.Request) error {
 		db.Put(dbi, []byte(out))
 
 	case "LIST":
-		for i := 1; i < 20; i++ {
+		topIndex = 0
+		var value []byte
+		err = db.Fold(func(key string) error {
+			value, err = db.Get(key)
+			if err != nil {
+				return err
+			}
+
+			keyIdx, err := strconv.Atoi(key)
+			//			fmt.Println("keyIdx", keyIdx)
+			if err == nil {
+				if keyIdx > topIndex {
+					topIndex = keyIdx
+				}
+			}
+			return nil
+		})
+		fmt.Println("topIndex: ", topIndex)
+
+		for i := 1; i < topIndex+1; i++ {
 			dbi := strconv.Itoa(i)
 			value, _ := db.Get(dbi)
-			if len(value) < 1 {
-				break
+			if len(value) > 1 {
+				fmt.Println(dbi, " ", string(value))
 			}
-			fmt.Println(dbi, " ", string(value))
 		}
 
 	case "DEL":
-		dbi := tagList[0].tagValue
-		if len(tagList) < 3 {
-			break
+		if tagList[0].tagName == "ID" {
+			dbi := tagList[0].tagValue
+			dbi = strings.TrimSpace(dbi)
+			if len(tagList[0].tagValue) > 1 {
+				err = db.Delete(dbi)
+				if err != nil {
+					fmt.Println("Delete Error: ", err)
+				}
+			} else {
+				fmt.Println("Delete Record: ", dbi)
+			}
+		} else {
+			fmt.Println("DEL Did not contain ID Tag Pair")
 		}
-		value, _ := db.Get(dbi)
-		fmt.Println(dbi, " ", string(value))
+
+	case "GET":
+		if tagList[0].tagName == "ID" {
+			dbi := tagList[0].tagValue
+			dbi = strings.TrimSpace(dbi)
+			if len(tagList) < 1 {
+				break
+			}
+			value, _ := db.Get(dbi)
+			fmt.Println(dbi, " ", string(value))
+		} else {
+			fmt.Println("DEL Did not contain ID Tag Pair")
+		}
 
 	case "EXIT":
 		db.Close()
