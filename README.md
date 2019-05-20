@@ -1,49 +1,66 @@
 # backend
-Job Test Progam
+A Flexible Database for storing records with mixed Columns
 
-Package **backend** implements an Rest API that manages a "company" database.
+ Package **backend** implements an Rest API that manages a "company" database.
+* This package implements a two level Key/Store Data Base:
+* The Data Records are indexed by ID Number as the Key
+* The Data Records are implemented internally as a Key/Store
+* Data Records are made up of a variable number of TAG Pairs
+* TAGS are identified by the first character which is a "|" ie |TAG
+* The |TAG is followed by any number of Words
 
- Server is on localhost:3000
+Example: |NAME John Smith |AGE 50
 
- Responds to endpoint "/backend/"
+Since Records are Key/Stores the Record Format is completely flexible.
 
- Specify the record <Command String>:
-     /NEW/<data string>   			- Creates a new record (next id avaiable)
-     /UPDATE/id/<data string>			- Updates specified record (id > 0)
-	   /GET/id/							- Returns spedified record (id > 0)
-     /DELETE/id/						- Deletes specified record (id > 0)
-	   /LIST/							- Lists all records in database
-	   /FIND/<Find string>		    - Lists records matching <Find Specification>
-         - <Find String>: |TAG <Search string> |TAG <Search String> ...
-	       		- May contains logic Tags:  |AND and/or |OR  - (|OR is assumed between pairs}
-			 <Search String>: Matchs if <TAG Value> "contains" the <search string>
+Each Record can have Unique Tag Pairs - The User can add special Tag to Any Record:  For Example:  
 
- Example: https://localhost:3000/backend/NEW |TAG <string> |TAG <string> < | or End of Line>
+** Server is on localhost:3000** Responds to endpoint `/backend/<CMD> [ <data list> ]``
 
-	 - End Point /backend/<Command String><ID> String><Data String>
-         	- <ID String> only present for <Command Strings> = GET, DELETE and UPDATE
-			- <Command String>: NEW, UPDATE, GET, DELETE, LIST, or FIND
-				- <Commands Strings> are always Upper CASE
+## Syntax Description
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+<CMD> <Data List>
 
-   		- <Data string>: - Composed of <!TAG><String> Pairs
-						     - Terminated by | or end of line
+<CMD> = Single Upper Case Text Word
 
-			. <Data String> are not allowed for Commands GET and DELETE
-			- Command LIST does not have <ID String>  or <Data String>
+<Data List> = <Tag Pair> [ <Tag Pair> ... ]
+
+<Tag Pair> = <TAG> <Word> [ <Word> ... ]
+
+<TAG> = <|><Single Upper Case Text Word><space>
+
+<Word> = <space><Text><space>
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+##  Commands
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     /NEW <data list>                  - Creates a new record (ID # -Automatic)
+     /UPDATE <|ID Number> <data list>  - Updates specified ID
+     /GET/<ID Record Number>           - Returns spedified ID
+     /DELETE/<ID Record Number>        - Deletes specified ID
+     /LIST/                            - Lists all records
+     /EXIT/                            - Close Database and exit
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    Example: https://localhost:3000/backend/NEW |NAME John Smith |AGE 50
+
+    Example: https://localhost:3000/backend/UPDATE |ID Rec# |NAME Mike Browm
 
 	 NOTES:
-		- TAGs should be unique (If #TAG <string> #TAG <string> (last tag value used))
-		- Commands may be any case (NEW same as new)
-		- #TAG must be an exact match (TAG and tag are NOT the same)
-		- Escaping the | Character in <string>:  || == |  (Not allowed in TAGS)
-		- All <strings> "are" strings! Numbers are specified as <strings>
-			- for example: "|NAME John Smith |AGE 20"  (Data Strings Implicitly strings)
+		- TAGs should be unique ( |NAME <string> |NAME <string> ) Is Wrong!!
+		- Commands should be in UPPER CASE (For CLarity)
+		- !TAG must be an exact match (TAG and tag are NOT the same)
+        - TAGS should be in UPPER CASE (For CLarity)
+		- There is no escape for the "|" Character is the TAG Prefix identifier
+		- All <data list Tags and Words are strings! Numbers are specified as <strings>
 
- Result of examples:
+## Example of LIST Command
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+CMD:  LIST
 
+1   |NAME John Jones |AGE 50
+2   |NAME Mark Smith |AGE 29
+3   |NAME Bob Brown  |AGE 35
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ Error Messages:
+     "Recoverable Errors are Display and Processing Continues"
 
-
- Error Messages:  If a viable stock name is not found:
-    "Error! The requested stock(s) could not be found."
-
- 
+ Unrecoverable Errors are handled by the "log.Fatal" package function.
