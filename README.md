@@ -15,7 +15,7 @@ Since Records are Key/Stores the Record Format is completely flexible.
 
 Each Record can have Unique Tag Pairs - The User can add special Tag to Any Record:  For Example:  
 
-** Server is on localhost:3000** Responds to endpoint `/backend/<CMD> [ <data list> ]``
+** Server is on localhost:3000** Responds to endpoint `/backend/<CMD> [ <data list> ]`
 
 ## Syntax Description
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
