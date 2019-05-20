@@ -81,6 +81,7 @@ var db *bitcask.Bitcask
 var dbi int = 0
 var err error
 var topIndex = 0
+var fieldZero []string
 
 // Types -
 // TagPair structure holds the data for each "tag pair" in the <data string>
@@ -107,6 +108,7 @@ func logFatal(errMsg string, err error) {
 	}
 }
 
+//
 // recIndex Function - Returns the Next Record Index.
 //
 func recIndex() int {
@@ -127,6 +129,24 @@ func top(key string) error {
 	return nil
 }
 
+func formOut(value string) []TagPair {
+	value = value + "|"
+	var vb int32 = 0x007C // Vertcal Bar
+	f := func(c rune) bool {
+		return !unicode.IsLetter(c) && !unicode.IsNumber(c) && c != vb
+	}
+	//	fmt.Println("formOut Update: ", value)
+	value = fieldZero[0] + " " + fieldZero[1] + " " + value
+	value = strings.Replace(value, "|", " | ", -1) //Insure '|' is bounded by spaces
+
+	//	fmt.Println("New Value: ", value)
+	fields := strings.FieldsFunc(value, f)
+	//	fmt.Println("Fields: ", fields)
+	_, tagList := parseTags(fields, false)
+	//	fmt.Println("CMD: ", cmd, "  tagList: ", tagList)
+	return tagList
+}
+
 // acquireInput - Acquire URL data from HTTP Resource.
 //		- Input all the data from URL.patn
 //		- Insure that the TAG precursor '|' is always bound by space character.
@@ -135,7 +155,7 @@ func top(key string) error {
 //
 func acquireInput(w http.ResponseWriter, r *http.Request) []string {
 	total := r.URL.Path
-	fmt.Println("total: ", total)
+	//	fmt.Println("total: ", total)
 	//	fmt.Println(total)                             //debug
 	total = strings.Replace(total, "|", " | ", -1) //Insure '|' is bounded by spaces
 	if !strings.HasSuffix(total, "|") {
@@ -149,7 +169,7 @@ func acquireInput(w http.ResponseWriter, r *http.Request) []string {
 	//	fmt.Println(total) //debug
 	fields := strings.FieldsFunc(total, f)
 
-	//	fmt.Println("Exiting acquire:")
+	//	fmt.Println("Fields: ", fields)
 	return fields
 }
 
@@ -184,9 +204,14 @@ func parseVertBar(fields []string) []int {
 // parseTags - Reads the FIELD Slice and isolates each TagPair in the
 //			<data string<> and creates a TagPair Struct <TAG><Value>,
 //			These values are stored in the "tagList" slice.
-func parseTags(fields []string) (string, []TagPair) {
-	//fmt.Println("parseTags: Fields: ", fields)
+func parseTags(fields []string, flag bool) (string, []TagPair) {
+	//	fmt.Println("parseTags Input: Fields: ", fields)
+	if flag {
+		fieldZero = fields
+		//		fmt.Println("fieldZero: ", fieldZero)
+	}
 	var tagList []TagPair
+	//	fmt.Println("Enter ParseVertBar", fields)
 	vtList := parseVertBar(fields)
 	//	fmt.Println("vtList: ", vtList)
 	for i := 0; i < len(vtList)-1; i++ {
@@ -195,22 +220,22 @@ func parseTags(fields []string) (string, []TagPair) {
 		vj := vtList[j]
 
 		tn := fields[vi+1]
-		//fmt.Println(tn)
+		//		fmt.Println(" tn: ", tn)
 		tv := ""
 		for tvi := vi + 2; tvi < vj; tvi++ {
-			//			fmt.Println("tvi: ", tvi)
+			//fmt.Println("tvi: ", tvi)
 			tv += fields[tvi] + " "
 		}
 		tagList = append(tagList, TagPair{tn, tv})
 	}
-	fmt.Println(fields[1], " ", tagList)
+	//	fmt.Println("parseTags: ", fields[1], " ", tagList)
 	return fields[1], tagList
 }
 
 func CommandLoop(w http.ResponseWriter, r *http.Request) error {
 
 	fields := acquireInput(w, r)
-	cmd, tagList := parseTags(fields)
+	cmd, tagList := parseTags(fields, true)
 	fmt.Println("CMD: ", cmd, "  tagList: ", tagList)
 
 	switch cmd {
@@ -274,12 +299,35 @@ func CommandLoop(w http.ResponseWriter, r *http.Request) error {
 			dbi := tagList[0].tagValue
 			dbi = strings.TrimSpace(dbi)
 			if len(tagList) < 1 {
-				break
+				fmt.Println("Invalid ID Record Number!")
+			} else {
+				value, _ := db.Get(dbi)
+				if len(value) < 1 {
+					fmt.Println("Requested Record ", dbi, " has been deleted!")
+				} else {
+					fmt.Println(dbi, " ", string(value))
+				}
 			}
-			value, _ := db.Get(dbi)
-			fmt.Println(dbi, " ", string(value))
-		} else {
-			fmt.Println("DEL Did not contain ID Tag Pair")
+		}
+
+	case "UPDATE":
+		//fmt.Println("Update Processing")
+		if tagList[0].tagName == "ID" {
+			dbi := tagList[0].tagValue
+			dbi = strings.TrimSpace(dbi)
+			if len(tagList) < 1 {
+				fmt.Println("Invalid ID Record Number!")
+			} else {
+				value, _ := db.Get(dbi)
+				if len(value) < 1 {
+					fmt.Println("Requested Record ", dbi, " has been deleted!")
+				} else {
+					//fmt.Println("Update Value: ", dbi, " ", string(value))
+					// Update Record Processing
+					tagList = formOut(string(value))
+					fmt.Println("formOut: ", tagList)
+				}
+			}
 		}
 
 	case "EXIT":
