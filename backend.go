@@ -268,7 +268,7 @@ func CommandLoop(w http.ResponseWriter, r *http.Request) error {
 			}
 			return nil
 		})
-		fmt.Println("topIndex: ", topIndex)
+		//fmt.Println("topIndex: ", topIndex)
 
 		for i := 1; i < topIndex+1; i++ {
 			dbi := strconv.Itoa(i)
@@ -318,14 +318,35 @@ func CommandLoop(w http.ResponseWriter, r *http.Request) error {
 			if len(tagList) < 1 {
 				fmt.Println("Invalid ID Record Number!")
 			} else {
+				out := ""
+				for i := 0; i < len(tagList); i++ {
+					out += "|" + tagList[i].tagName
+					out += " " + tagList[i].tagValue
+				}
+				//fmt.Println("Update :", out)
+				newList := formOut(string(out))
+				//fmt.Println("NEW: ", newList)
 				value, _ := db.Get(dbi)
 				if len(value) < 1 {
 					fmt.Println("Requested Record ", dbi, " has been deleted!")
 				} else {
-					//fmt.Println("Update Value: ", dbi, " ", string(value))
-					// Update Record Processing
 					tagList = formOut(string(value))
-					fmt.Println("formOut: ", tagList)
+					//fmt.Println("formOut: ", tagList)
+					for ti := 0; ti < len(tagList); ti++ {
+						for ni := 0; ni < len(newList); ni++ {
+							if tagList[ti].tagName == newList[ni].tagName {
+								tagList[ti].tagValue = newList[ni].tagValue
+								break
+							}
+						}
+					}
+					out := ""
+					for i := 0; i < len(tagList); i++ {
+						out += "|" + tagList[i].tagName
+						out += " " + tagList[i].tagValue
+					}
+					//fmt.Println("Output Record: ", dbi, " ", out)
+					db.Put(dbi, []byte(out))
 				}
 			}
 		}
