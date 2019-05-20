@@ -1,64 +1,59 @@
 // Package backend implements an Rest API that manages a "company" database.
+//		This package implements a two level Key/Store Data Base:
+//		The Data Records are indexed by ID Number ID/RECORD DATA
+//		The Data Records are implemented internally as a Key/Store
+//			Data Records are made up of a variable number of TAG Pairs
+//.				TAGS are identified by the first character which is a "|" ie |TAG
+//					The |TAG is followed by any number of Words
+//						Example: |NAME John Smith |AGE 50
+//		Since Records are Key/Stores the Record Format is Flexiable.
+//			Each Record can have any Tag Pairs - The User can a special Tags
+//			to Any Record:  For Example:  Some Records might be Flagged in some way.
 //
 // Server is on localhost:3000
-// Responds to endpoint "/backend/"
+// Responds to endpoint "/backend/<cmd> <data list>"
 //
-// Specify the record <Command String>:
-//     /NEW/<data string>   			- Creates a new record (next id avaiable)
-//     /UPDATE/<ID string><data string>			- Updates specified record (id > 0)
-//			  <ID string> <ID REC #>
-//	   /GET/<ID string>						- Returns spedified record (id > 0)
-//     /DELETE/<ID string>					- Deletes specified record (id > 0)
-//	   /LIST/							- Lists all records in database
-//	   /FIND/<Find string>		    - Lists records matching <Find Specification>
-//         - <Find String>: |TAG <Search string> |TAG <Search String> ...
-//	       		- May contains logic Tags:  |AND and/or |OR  - (|OR is assumed between pairs}
-//			 <Search String>: Matchs if <TAG Value> "contains" the <search string>
-//	   /EXIT/							- Close Database and exit
+// Command Format:
+// 		<data list> is made up a variable number of <tag pairs>
+//			<tag pairs> consist of a <|TAG> and variable number of <text words>
+// For Examples:
+//			/NEW |NAME John Smith |AGE 56
+//			/UPDATE |ID 10 |NAME Bob Lay  - Changes Name Value of ID 10
 //
-// Example: https://localhost:3000/backend/NEW |TAG <string> |TAG <string> < | or End of Line>
+//  Commands:
 //
-//	 - End Point /backend/<Command String><ID> String><Data String>
-//         	- <ID String> only present for <Command Strings> = GET, DELETE and UPDATE
-//			- <Command String>: NEW, UPDATE, GET, DELETE, LIST, or FIND
-//				- <Commands Strings> are always Upper CASE
-
-//   		- <Data string>: - Composed of <!TAG><String> Pairs
-//						     - Terminated by | or end of line
+//     /NEW <data list>   		- Creates a new record (Using next avaiable ID Value)
+//     /UPDATE <|ID Number> <data list>	 - Updates specified ID
+//	   /GET/<ID string>						 - Returns spedified ID
+//     /DELETE/<ID Number>					 - Deletes specified ID
+//	   /LIST/								 - Lists all records in database
+//	   /EXIT/		 						 - Close Database and exit
 //
-//			. <Data String> are not allowed for Commands GET and DELETE
-//			- Command LIST does not have <ID String>  or <Data String>
+// Example: https://localhost:3000/backend/NEW |NEW John Smith |AGE 50
 //
 //	 NOTES:
-//		- TAGs should be unique (If #TAG <string> #TAG <string> (last tag value used))
-//		- Commands may be any case (NEW same as new)
-//		- #TAG must be an exact match (TAG and tag are NOT the same)
-//		- Escaping the | Character in <string>:  || == |  (Not allowed in TAGS)
-//		- All <strings> "are" strings! Numbers are specified as <strings>
-//			- for example: "|NAME John Smith |AGE 20"  (Data Strings Implicitly strings)
-//
-// Result of examples:
+//		- TAGs should be unique (If |NAME <string> |NAME <string> (Both will be present?)
+//		- Commands should be in UPPER CASE (For CLarity)
+//		- !TAG must be an exact match (TAG and tag are NOT the same)
+//		- There is no escape for the "|" Character as it is the TAG Prefix identifier
+//		- All <data list Tags and Words are strings! Numbers are specified as <strings>
 //
 //
+// Result List Example:
+//CMD:  LIST   tagList:  []
+//1   |NAME John jones |AGE 50
+//2   |NAME John jones |AGE 50
+//3   |NAME John jones |AGE 50
 //
-// Error Messages:  If a viable stock name is not found:
-//     "Error! The requested stock(s) could not be found."
+// Error Messages:
+//     "Recoverable Errors are Display and Processing Continues"
 //
 // Unrecoverable Errors are handled by the "log" package.
-//
-// This program uses the minimum standard libraries to accomplish its goals!
-// "fmt"  - For displaying text.
-// "io/ioutil" - For reading the response body.
-// "net/http" - For REST Operations.
-// "strings" - For manipulating strings.
-// "unicode" - For determining text classes (ie string, number..).
-// "log" - For reporting Fatal Errors!
 //
 package main
 
 import (
 	"fmt"
-	_ "io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -77,6 +72,7 @@ const fileName = "./db"
 //  - dbi variable holds Record Index for writing records
 //  - err Error variables
 //  - Top Index detected from Fold Command
+//  - Special Buffer for Update Mode
 var db *bitcask.Bitcask
 var dbi int = 0
 var err error
@@ -96,10 +92,10 @@ type TagPair struct {
 //
 func init() {
 	db, err = bitcask.Open(fileName)
-	//	defer db.Close()
 	logFatal("Database Open Failure: ", err)
 }
 
+//
 // logFatal Function - Handlers Fatal Error.
 //
 func logFatal(errMsg string, err error) {
@@ -116,6 +112,9 @@ func recIndex() int {
 	return dbi
 }
 
+//
+// top Function - Finds and Stores the Highest Index Key in the database
+//
 func top(key string) error {
 	key = strings.TrimSpace(key)
 	newKey, keyErr := strconv.Atoi(key)
@@ -129,21 +128,20 @@ func top(key string) error {
 	return nil
 }
 
+//
+// formOut Function - Converts a data string into a tagList
+//
 func formOut(value string) []TagPair {
 	value = value + "|"
 	var vb int32 = 0x007C // Vertcal Bar
 	f := func(c rune) bool {
 		return !unicode.IsLetter(c) && !unicode.IsNumber(c) && c != vb
 	}
-	//	fmt.Println("formOut Update: ", value)
 	value = fieldZero[0] + " " + fieldZero[1] + " " + value
 	value = strings.Replace(value, "|", " | ", -1) //Insure '|' is bounded by spaces
 
-	//	fmt.Println("New Value: ", value)
 	fields := strings.FieldsFunc(value, f)
-	//	fmt.Println("Fields: ", fields)
 	_, tagList := parseTags(fields, false)
-	//	fmt.Println("CMD: ", cmd, "  tagList: ", tagList)
 	return tagList
 }
 
@@ -155,21 +153,15 @@ func formOut(value string) []TagPair {
 //
 func acquireInput(w http.ResponseWriter, r *http.Request) []string {
 	total := r.URL.Path
-	//	fmt.Println("total: ", total)
-	//	fmt.Println(total)                             //debug
 	total = strings.Replace(total, "|", " | ", -1) //Insure '|' is bounded by spaces
 	if !strings.HasSuffix(total, "|") {
 		total += " |" // Insure that <data string> ends with a Vertical Bar
-		//		fmt.Println(total)
 	}
 	var vb int32 = 0x007C // Vertcal Bar
 	f := func(c rune) bool {
 		return !unicode.IsLetter(c) && !unicode.IsNumber(c) && c != vb
 	}
-	//	fmt.Println(total) //debug
 	fields := strings.FieldsFunc(total, f)
-
-	//	fmt.Println("Fields: ", fields)
 	return fields
 }
 
@@ -184,7 +176,6 @@ func acquireInput(w http.ResponseWriter, r *http.Request) []string {
 //			to check if <data string> ends in two Verticals. If it does the
 //		    last one is removed.
 func parseVertBar(fields []string) []int {
-	//	fmt.Println("parseVertBar: Fields: ", fields)
 	vtList := make([]int, 0)
 	for i, v := range fields {
 		vt := strings.TrimSpace(v)
@@ -193,7 +184,6 @@ func parseVertBar(fields []string) []int {
 		}
 	}
 	if len(vtList) > 1 {
-		//		fmt.Println("vtList Pair Check: ", len(vtList)-2, "  ", len(vtList)-1)
 		if vtList[len(vtList)-2] == vtList[len(vtList)-1]-1 {
 			vtList = vtList[:len(vtList)-1]
 		}
@@ -205,38 +195,38 @@ func parseVertBar(fields []string) []int {
 //			<data string<> and creates a TagPair Struct <TAG><Value>,
 //			These values are stored in the "tagList" slice.
 func parseTags(fields []string, flag bool) (string, []TagPair) {
-	//	fmt.Println("parseTags Input: Fields: ", fields)
 	if flag {
 		fieldZero = fields
-		//		fmt.Println("fieldZero: ", fieldZero)
 	}
 	var tagList []TagPair
-	//	fmt.Println("Enter ParseVertBar", fields)
 	vtList := parseVertBar(fields)
-	//	fmt.Println("vtList: ", vtList)
 	for i := 0; i < len(vtList)-1; i++ {
 		j := i + 1
 		vi := vtList[i]
 		vj := vtList[j]
 
 		tn := fields[vi+1]
-		//		fmt.Println(" tn: ", tn)
 		tv := ""
 		for tvi := vi + 2; tvi < vj; tvi++ {
-			//fmt.Println("tvi: ", tvi)
 			tv += fields[tvi] + " "
 		}
 		tagList = append(tagList, TagPair{tn, tv})
 	}
-	//	fmt.Println("parseTags: ", fields[1], " ", tagList)
 	return fields[1], tagList
 }
 
+//
+// Command Processing Function - The Processing for each Command is here
+//
 func CommandLoop(w http.ResponseWriter, r *http.Request) error {
 
 	fields := acquireInput(w, r)
 	cmd, tagList := parseTags(fields, true)
-	fmt.Println("CMD: ", cmd, "  tagList: ", tagList)
+	if len(tagList) < 1 {
+		fmt.Println("CMD: ", cmd)
+	} else {
+		fmt.Println("CMD: ", cmd, "  tagList: ", tagList)
+	}
 
 	switch cmd {
 
@@ -247,7 +237,6 @@ func CommandLoop(w http.ResponseWriter, r *http.Request) error {
 			out += " " + tagList[i].tagValue
 		}
 		dbi := strconv.Itoa(recIndex())
-		fmt.Println("Output Record: ", dbi, " ", out)
 		db.Put(dbi, []byte(out))
 
 	case "LIST":
@@ -260,7 +249,6 @@ func CommandLoop(w http.ResponseWriter, r *http.Request) error {
 			}
 
 			keyIdx, err := strconv.Atoi(key)
-			//			fmt.Println("keyIdx", keyIdx)
 			if err == nil {
 				if keyIdx > topIndex {
 					topIndex = keyIdx
@@ -268,7 +256,6 @@ func CommandLoop(w http.ResponseWriter, r *http.Request) error {
 			}
 			return nil
 		})
-		//fmt.Println("topIndex: ", topIndex)
 
 		for i := 1; i < topIndex+1; i++ {
 			dbi := strconv.Itoa(i)
@@ -311,7 +298,6 @@ func CommandLoop(w http.ResponseWriter, r *http.Request) error {
 		}
 
 	case "UPDATE":
-		//fmt.Println("Update Processing")
 		if tagList[0].tagName == "ID" {
 			dbi := tagList[0].tagValue
 			dbi = strings.TrimSpace(dbi)
@@ -323,15 +309,12 @@ func CommandLoop(w http.ResponseWriter, r *http.Request) error {
 					out += "|" + tagList[i].tagName
 					out += " " + tagList[i].tagValue
 				}
-				//fmt.Println("Update :", out)
 				newList := formOut(string(out))
-				//fmt.Println("NEW: ", newList)
 				value, _ := db.Get(dbi)
 				if len(value) < 1 {
 					fmt.Println("Requested Record ", dbi, " has been deleted!")
 				} else {
 					tagList = formOut(string(value))
-					//fmt.Println("formOut: ", tagList)
 					for ti := 0; ti < len(tagList); ti++ {
 						for ni := 0; ni < len(newList); ni++ {
 							if tagList[ti].tagName == newList[ni].tagName {
@@ -345,7 +328,6 @@ func CommandLoop(w http.ResponseWriter, r *http.Request) error {
 						out += "|" + tagList[i].tagName
 						out += " " + tagList[i].tagValue
 					}
-					//fmt.Println("Output Record: ", dbi, " ", out)
 					db.Put(dbi, []byte(out))
 				}
 			}
